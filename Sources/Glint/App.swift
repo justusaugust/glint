@@ -17,7 +17,7 @@ import UniformTypeIdentifiers
 final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
     private let catalog = Catalog()
     private let shortcut = Shortcut()
-    private let palette = Palette()
+    let palette = Palette()
     private let appLauncher = AppLauncher()
     private var status: NSStatusItem?
     private var settings: NSWindow?
@@ -227,10 +227,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
         }
     }
 
-    @objc private func activated(_ notification: Notification) {
+    @objc func activated(_ notification: Notification) {
         guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
         record(app)
-        if palette.isVisible && app.bundleIdentifier != context && app.bundleIdentifier != Bundle.main.bundleIdentifier { dismiss() }
     }
 
     private func record(_ app: NSRunningApplication?) {
