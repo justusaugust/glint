@@ -4,9 +4,10 @@
 
 A small native macOS app switcher with Liquid Glass, a hold shortcut, and predictions that learn your switching habits.
 
-Hold **Right Command**, type an app name, then release to open the selected app. Hold and release without typing to choose the learned prediction. Escape cancels. Control–Option–Space opens a regular search palette.
+Hold **Right Command**, type an app name, then release to open the selected app. Hold and release without typing to choose the learned prediction. Press a numbered result key to select it, even after typing; Shift + number enters a literal digit (for example, 1Password). Escape cancels. Control–Option–Space opens a regular search palette.
 
 - Searches installed apps, including apps that aren't running.
+- Settings → Apps supports aliases, pinned suggestions, and exclusions. Exact app names still take priority.
 - Sends a reopen event to recover apps whose last window was closed.
 - Learns app pairs, short sequences, time of day, and recent context. Older habits fade with a 14-day half-life.
 - Updates the app catalog from filesystem and workspace notifications. No polling timers or network services.
@@ -35,9 +36,9 @@ Data stays in `~/Library/Application Support/Glint/switches.sqlite`. Startup rea
 
 ## Design and implementation
 
-AppKit panel and controls, Apple's glass material, Swift concurrency for app scanning, SQLite for local history, and a small dependency-free ranking model. The icon is two minimal SVG panes authored with Claude Opus and finished in Apple Icon Composer; its editable source is in `Assets/Glint.icon`.
+AppKit panel and controls, Apple's glass material, Swift concurrency for app scanning, SQLite for local history, and a small dependency-free ranking model. The icon is a minimal folded ribbon SVG authored with Claude Opus and finished in Apple Icon Composer; its editable source is in `Assets/Glint.icon`.
 
-Tests cover search tiers, windowless and nonrunning candidates, Unicode names, gesture cancellation, adaptive predictions, read-only import, duplicate imports, persistence, and search performance. Native keyboard interception, OS permissions, and app-specific reopen behavior also require testing on a real Mac.
+Tests cover search tiers, windowless and nonrunning candidates, Unicode names, gesture cancellation, native field editing, numbered results, aliases and exclusions, adaptive predictions, read-only import, duplicate imports, persistence, and search performance. Native keyboard interception, OS permissions, and app-specific reopen behavior also require testing on a real Mac.
 
 ## License
 

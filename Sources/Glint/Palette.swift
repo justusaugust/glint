@@ -91,13 +91,18 @@ final class Palette: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
         ])
     }
 
-    override var canBecomeKey: Bool { true }
+    override var canBecomeKey: Bool { !isHold }
     override var canBecomeMain: Bool { false }
 
     private func add(_ view: NSView) { view.translatesAutoresizingMaskIntoConstraints = false; container.addSubview(view) }
 
     func present(hold: Bool) {
         isHold = hold
+        makeFirstResponder(nil)
+        if hold && isKeyWindow { resignKey() }
+        // The event tap owns hold input; a native field editor would select programmatic updates.
+        queryField.isEditable = !hold
+        queryField.isSelectable = !hold
         lastMousePosition = NSEvent.mouseLocation
         query = ""
         queryField.stringValue = ""
@@ -108,6 +113,7 @@ final class Palette: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
         }
         if hold { orderFrontRegardless() }
         else { makeKeyAndOrderFront(nil); makeFirstResponder(queryField) }
+        assert(!hold || (!isKeyWindow && queryField.currentEditor() == nil))
     }
 
     func render(_ apps: [AppEntry], running: Set<String>, count: Int) {
@@ -132,12 +138,11 @@ final class Palette: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
         empty.isHidden = !apps.isEmpty
         empty.stringValue = indexing && apps.isEmpty ? "Finding your apps…" : "No matching apps"
         footer.stringValue = isHold
-            ? "Release \(holdLabel) to switch    ↑ ↓ to choose    esc to cancel"
-            : "↵ to open    ↑ ↓ to choose    esc to close                                    \(count) apps"
+            ? "Release \(holdLabel) to switch    1–5 to choose    ⇧number to type a digit    esc to cancel"
+            : "↵ to open    1–5 to choose    ⇧number to type a digit    esc to close    \(count) apps"
         let height = CGFloat(max(1, apps.count)) * 62 + 134
         let top = frame.maxY
         setFrame(NSRect(x: frame.minX, y: top - height - 48, width: 688, height: height + 48), display: isVisible)
-        queryField.setAccessibilityValue(query)
     }
 
     private func select(_ index: Int) {
@@ -153,7 +158,28 @@ final class Palette: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
 
     func commit() { if items.indices.contains(selected) { onCommit?(items[selected]) } else { onCancel?() } }
 
-    func receive(_ code: UInt16, text: String) {
+    private static let digits: [UInt16: String] = [18: "1", 19: "2", 20: "3", 21: "4", 23: "5", 22: "6", 26: "7", 28: "8", 25: "9", 29: "0", 83: "1", 84: "2", 85: "3", 86: "4", 87: "5", 88: "6", 89: "7", 91: "8", 92: "9", 82: "0"]
+
+    private func selectNumber(_ text: String) -> Bool {
+        guard text.count == 1, let number = Int(text), (1...items.count).contains(number) else { return false }
+        select(number - 1)
+        return true
+    }
+
+    override func sendEvent(_ event: NSEvent) {
+        if !isHold, event.type == .keyDown,
+           event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
+           let digit = Self.digits[event.keyCode] {
+            if event.modifierFlags.contains(.shift), let editor = queryField.currentEditor() as? NSTextView {
+                editor.insertText(digit, replacementRange: NSRange(location: NSNotFound, length: 0))
+                return
+            }
+            if selectNumber(digit) { return }
+        }
+        super.sendEvent(event)
+    }
+
+    func receive(_ code: UInt16, text: String, literalNumber: Bool = false) {
         switch code {
         case 125, 124, 48: move(1)
         case 126, 123: move(-1)
@@ -161,7 +187,8 @@ final class Palette: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
         case 51, 117:
             if !query.isEmpty { query.removeLast(); queryChanged() }
         default:
-            if query.isEmpty, let number = Int(text), (1...items.count).contains(number) { select(number - 1); return }
+            if !literalNumber, selectNumber(text) { return }
+            let text = literalNumber ? Self.digits[code] ?? text : text
             let printable = text.filter { !$0.isNewline && !$0.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) }
             guard !printable.isEmpty, query.count < 128 else { return }
             query += String(printable.prefix(128 - query.count))
@@ -169,7 +196,11 @@ final class Palette: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
         }
     }
 
-    private func queryChanged() { selected = 0; queryField.stringValue = query; onQuery?(query) }
+    private func queryChanged() {
+        selected = 0
+        if queryField.stringValue != query { queryField.stringValue = query }
+        onQuery?(query)
+    }
     func controlTextDidChange(_ notification: Notification) { query = String(queryField.stringValue.prefix(128)); queryChanged() }
     func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
         switch selector {
@@ -192,7 +223,8 @@ private final class GlassBackdrop: NSView {
         super.init(frame: NSRect(x: 0, y: 0, width: 688, height: 498))
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
-        glass.style = .regular
+        glass.style = .clear
+        glass.tintColor = NSColor.windowBackgroundColor.withAlphaComponent(0.68)
         glass.cornerRadius = 28
         glass.contentView = content
         glass.wantsLayer = true

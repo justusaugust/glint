@@ -26,6 +26,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
     private var appCountLabel: NSTextField?
     private var enableButton: NSButton?
     private var recent: [String] = []
+    private var appRules: [String: AppRule] = [:]
+    private var applicationsSettings: ApplicationsSettings?
     private var predictor = Predictor()
     private var history: HistoryStore?
     private var learningError: String?
@@ -42,6 +44,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
             NSApp.terminate(nil); return
         }
         recent = defaults.stringArray(forKey: "recent") ?? []
+        if let data = defaults.data(forKey: "appRules") {
+            appRules = (try? PropertyListDecoder().decode([String: AppRule].self, from: data)) ?? [:]
+        }
         do {
             let url = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
                 .appendingPathComponent("Glint/switches.sqlite")
@@ -57,7 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
         shortcut.begin = { [weak self] in self?.show(hold: true) }
         shortcut.commit = { [weak self] in self?.palette.commit() }
         shortcut.cancel = { [weak self] in self?.palette.orderOut(nil) }
-        shortcut.input = { [weak self] code, text in self?.palette.receive(code, text: text) }
+        shortcut.input = { [weak self] code, text, literal in self?.palette.receive(code, text: text, literalNumber: literal) }
         fallbackAvailable = shortcut.installFallback { [weak self] in
             guard let self else { return }
             if palette.isVisible { dismiss() } else { show(hold: false) }
@@ -111,6 +116,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
         let preferences = appMenu.addItem(withTitle: "Settings…", action: #selector(showSettings), keyEquivalent: ",")
         preferences.target = self
         appMenu.addItem(withTitle: "Quit Glint", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let editItem = main.addItem(withTitle: "Edit", action: nil, keyEquivalent: "")
+        let edit = NSMenu(title: "Edit")
+        editItem.submenu = edit
+        for (title, action, key) in [("Undo", "undo:", "z"), ("Redo", "redo:", "Z"),
+                                      ("Cut", "cut:", "x"), ("Copy", "copy:", "c"),
+                                      ("Paste", "paste:", "v"), ("Select All", "selectAll:", "a")] {
+            edit.addItem(withTitle: title, action: Selector(action), keyEquivalent: key)
+        }
         NSApp.mainMenu = main
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         status?.button?.image = NSImage(systemSymbolName: "sparkle.magnifyingglass", accessibilityDescription: "Glint")
@@ -146,7 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
         let probabilities = predictor.probabilities(appIDs: catalog.apps.map(\.id), source: source,
             previous: recent.first { $0 != source }, recent: recent)
         let results = Search.rank(catalog.apps, query: palette.query, recent: recent, current: context ?? current,
-                                  running: regular, predictions: predictor.count > 0 ? probabilities : [:])
+                                  running: regular, predictions: predictor.count > 0 ? probabilities : [:], rules: appRules)
         palette.render(results, running: running, count: catalog.apps.count)
     }
 
@@ -282,7 +295,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        ["general", "keyboard", "learning"].map { NSToolbarItem.Identifier($0) }
+        ["general", "keyboard", "applications", "learning"].map { NSToolbarItem.Identifier($0) }
     }
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         toolbarDefaultItemIdentifiers(toolbar)
@@ -294,7 +307,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
                  willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
         let item = NSToolbarItem(itemIdentifier: id)
         let names = ["general": ("General", "slider.horizontal.3"), "keyboard": ("Keyboard", "keyboard"),
-                     "learning": ("Learning", "sparkles")]
+                     "applications": ("Apps", "square.grid.2x2"), "learning": ("Learning", "sparkles")]
         guard let (label, symbol) = names[id.rawValue] else { return nil }
         item.label = label
         item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
@@ -310,6 +323,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
 
     private func renderSettings() {
         guard let settings else { return }
+        let height: CGFloat = settingsTab.rawValue == "applications" ? 420 : 280
+        let top = settings.frame.maxY
+        settings.setContentSize(NSSize(width: 560, height: height))
+        settings.setFrameOrigin(NSPoint(x: settings.frame.minX, y: top - settings.frame.height))
+        if settingsTab.rawValue == "applications" {
+            let editor = ApplicationsSettings(apps: catalog.apps, rules: appRules) { [weak self] id, rule in
+                guard let self else { return }
+                appRules[id] = rule == AppRule() ? nil : rule
+                if let data = try? PropertyListEncoder().encode(appRules) { defaults.set(data, forKey: "appRules") }
+                updateResults()
+            }
+            applicationsSettings = editor
+            settings.contentView = editor.view
+            return
+        }
+        applicationsSettings = nil
         permissionLabel = nil
         learningLabel = nil
         appCountLabel = nil

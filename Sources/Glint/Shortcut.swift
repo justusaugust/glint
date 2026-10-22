@@ -28,7 +28,7 @@ final class Shortcut {
     var begin: (() -> Void)?
     var commit: (() -> Void)?
     var cancel: (() -> Void)?
-    var input: ((CGKeyCode, String) -> Void)?
+    var input: ((CGKeyCode, String, Bool) -> Void)?
     private var port: CFMachPort?
     private var source: CFRunLoopSource?
     private var gesture = HoldGesture()
@@ -88,7 +88,7 @@ final class Shortcut {
     func reset() { gesture.reset(); swallowed.removeAll(); cancel?() }
     func cancelHold() { if gesture.cancel() == .cancel { cancel?() } }
 
-    private func receive(_ type: CGEventType, _ event: CGEvent) -> Bool {
+    func receive(_ type: CGEventType, _ event: CGEvent) -> Bool {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             reset()
             if let port { CGEvent.tapEnable(tap: port, enable: true) }
@@ -101,7 +101,8 @@ final class Shortcut {
         if IsSecureEventInputEnabled() { reset(); return false }
         if type == .flagsChanged {
             let down = event.flags.rawValue & key.deviceMask != 0
-            let others = event.flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]).subtracting(key.flag)
+            var others = event.flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]).subtracting(key.flag)
+            if holding { others.remove(.maskShift) }
             // Only the configured physical key starts a gesture; unrelated flag changes cannot start one.
             if code != key.rawValue && gesture.state == .idle { return false }
             let effect = gesture.modifier(down: down, otherModifier: !others.isEmpty)
@@ -116,7 +117,7 @@ final class Shortcut {
         var count = 0
         event.keyboardGetUnicodeString(maxStringLength: characters.count, actualStringLength: &count, unicodeString: &characters)
         let string = NSEvent(cgEvent: event)?.charactersIgnoringModifiers ?? String(utf16CodeUnits: characters, count: count)
-        input?(code, string)
+        input?(code, string, event.flags.contains(.maskShift))
         return true
     }
 }

@@ -1,57 +1,59 @@
 {
-  "features": [
-    "refractivity"
+  "features" : [
+    "refractivity",
+    "specular-location"
   ],
-  "fill": {
-    "automatic-gradient": "extended-srgb:0.04706,0.27059,0.85882,1.00000"
+  "fill" : {
+    "automatic-gradient" : "extended-srgb:0.96078,0.89020,0.83922,1.00000"
   },
-  "groups": [
+  "groups" : [
     {
-      "layers": [
+      "layers" : [
         {
-          "image-name": "GlintBack.svg",
-          "name": "Rear pane"
+          "image-name" : "RibbonFront.svg",
+          "name" : "ribbon-front"
         }
       ],
-      "name": "Rear pane",
-      "shadow": {
-        "kind": "neutral",
-        "opacity": 0.4
+      "name" : "Ribbon face",
+      "refractivity" : {
+        "depth" : 0.4,
+        "enabled" : true,
+        "strength" : 0.7
       },
-      "translucency": {
-        "enabled": true,
-        "value": 0.42
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.35
       },
-      "refractivity": {
-        "depth": 0.18,
-        "enabled": true,
-        "strength": 0.35
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.62
       }
     },
     {
-      "layers": [
+      "layers" : [
         {
-          "image-name": "GlintFront.svg",
-          "name": "Front pane"
+          "image-name" : "RibbonReverse.svg",
+          "name" : "ribbon-reverse"
         }
       ],
-      "name": "Front pane",
-      "refractivity": {
-        "depth": 0.32,
-        "enabled": true,
-        "strength": 0.6
+      "name" : "Folded return",
+      "refractivity" : {
+        "depth" : 0.4,
+        "enabled" : true,
+        "strength" : 0.7
       },
-      "shadow": {
-        "kind": "neutral",
-        "opacity": 0.55
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.35
       },
-      "translucency": {
-        "enabled": true,
-        "value": 0.28
+      "specular" : "inside",
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.62
       }
     }
   ],
-  "supported-platforms": {
-    "squares": "shared"
+  "supported-platforms" : {
+    "squares" : "shared"
   }
 }

@@ -62,3 +62,20 @@ private func app(_ id: String, _ name: String) -> AppEntry {
     print("Search benchmark: 100 queries across 1,001 apps: \(elapsed)")
     #expect(elapsed < .seconds(5))
 }
+
+@Test func aliasesPinsAndExclusionsRespectExplicitNames() throws {
+    let apps = [app("code", "Code"), app("work", "Work"), app("chat", "Chat")]
+    let rules = ["code": AppRule(aliases: [" work ", "WORK", "editor"], pinned: true), "chat": AppRule(excluded: true)]
+    func find(_ query: String) -> [String] {
+        Search.rank(apps, query: query, recent: ["chat", "work"], current: nil, running: [], rules: rules).map(\.id)
+    }
+    #expect(find("").first == "code")
+    #expect(find("editor") == ["code"])
+    #expect(find("edi") == ["code"])
+    #expect(find("work").first == "work")
+    #expect(!find("chat").contains("chat"))
+    #expect(rules["code"]?.aliases == ["editor", "work"])
+    let restored = try PropertyListDecoder().decode([String: AppRule].self, from: PropertyListEncoder().encode(rules))
+    #expect(restored == rules)
+    #expect(Search.rank(apps, query: "", recent: [], current: "code", running: [], rules: rules).map(\.id) == ["work"])
+}

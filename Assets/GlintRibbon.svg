@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>Glint ribbon</title>
+
+  <path id="ribbon-front" fill="#FFA161" d="M190 388 Q448 349.2 705.3 313.1 Q769.7 304.1 781.8 325.2 L514 480 Q359 481 190 506 Z" transform="translate(20 0)" />
+  <path id="ribbon-reverse" fill="#F06863" d="M781.8 325.2 Q794 346.2 753.9 397.4 L489 736 Q435.7 714.7 402.3 668.2 Q470.8 584 514 480 Z" transform="translate(20 0)" />
+</svg>

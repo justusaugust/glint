@@ -22,6 +22,18 @@ public struct AppEntry: Identifiable, Hashable, Sendable {
     }
 }
 
+public struct AppRule: Codable, Equatable, Sendable {
+    public let aliases: [String]
+    public let pinned: Bool
+    public let excluded: Bool
+
+    public init(aliases: [String] = [], pinned: Bool = false, excluded: Bool = false) {
+        self.aliases = Array(Set(aliases.map(AppEntry.normalize).filter { !$0.isEmpty })).sorted()
+        self.pinned = pinned
+        self.excluded = excluded
+    }
+}
+
 public enum Search {
     public static func score(_ query: String, in app: AppEntry) -> Int? {
         let name = app.searchName
@@ -42,18 +54,26 @@ public enum Search {
 
     public static func rank(_ apps: [AppEntry], query: String, recent: [String],
                             current: String?, running: Set<String>,
-                            limit: Int = 5, predictions: [String: Double] = [:]) -> [AppEntry] {
+                            limit: Int = 5, predictions: [String: Double] = [:], rules: [String: AppRule] = [:]) -> [AppEntry] {
         let query = AppEntry.normalize(String(query.prefix(128)).trimmingCharacters(in: .whitespacesAndNewlines))
         let recency = Dictionary(recent.enumerated().map { ($1, max(0, 100 - $0)) }, uniquingKeysWith: max)
         return apps.compactMap { app -> (AppEntry, Int)? in
-            let priority = predictions.isEmpty
+            let rule = rules[app.id]
+            guard rule?.excluded != true else { return nil }
+            let learned = predictions.isEmpty
                 ? recency[app.id, default: 0] * 100 + (running.contains(app.id) ? 10 : 0)
                 : Int(predictions[app.id, default: 0] * 1_000_000)
+            let priority = learned + (rule?.pinned == true ? 2_000_000 : 0)
             if query.isEmpty {
                 guard app.id != current else { return nil }
                 return (app, priority)
             }
-            guard let match = score(query, in: app) else { return nil }
+            let aliasMatch = rule?.aliases.compactMap { alias -> Int? in
+                if alias == query { return 9_000 }
+                return alias.hasPrefix(query) ? 7_500 : nil
+            }.max()
+            let match = max(score(query, in: app) ?? Int.min, aliasMatch ?? Int.min)
+            guard match != Int.min else { return nil }
             return (app, match * 1_000_000 + priority)
         }.sorted {
             $0.1 == $1.1 ? $0.0.name.localizedStandardCompare($1.0.name) == .orderedAscending : $0.1 > $1.1

@@ -9,6 +9,7 @@ let package = Package(
         .target(name: "GlintCore"),
         .executableTarget(name: "Glint", dependencies: ["GlintCore"],
                           swiftSettings: [.defaultIsolation(MainActor.self)]),
-        .testTarget(name: "GlintCoreTests", dependencies: ["GlintCore"])
+        .testTarget(name: "GlintCoreTests", dependencies: ["GlintCore"]),
+        .testTarget(name: "GlintTests", dependencies: ["Glint"])
     ]
 )
