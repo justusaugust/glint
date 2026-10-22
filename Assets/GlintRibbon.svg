@@ -1,6 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <title>Glint ribbon</title>
-
-  <path id="ribbon-front" fill="#FFA161" d="M190 388 Q448 349.2 705.3 313.1 Q769.7 304.1 781.8 325.2 L514 480 Q359 481 190 506 Z" transform="translate(20 0)" />
-  <path id="ribbon-reverse" fill="#F06863" d="M781.8 325.2 Q794 346.2 753.9 397.4 L489 736 Q435.7 714.7 402.3 668.2 Q470.8 584 514 480 Z" transform="translate(20 0)" />
+  <defs>
+    <!-- Broad watercolor-like washes, kept within a few percent of each base fill -->
+    <linearGradient id="washFront" gradientUnits="userSpaceOnUse" x1="200" y1="360" x2="740" y2="470">
+      <stop offset="0" stop-color="#FFAE72"/>
+      <stop offset="0.32" stop-color="#FFA161"/>
+      <stop offset="0.58" stop-color="#FF9A66"/>
+      <stop offset="0.82" stop-color="#FFA75E"/>
+      <stop offset="1" stop-color="#FF9F65"/>
+    </linearGradient>
+    <linearGradient id="washReverse" gradientUnits="userSpaceOnUse" x1="700" y1="330" x2="520" y2="740">
+      <stop offset="0" stop-color="#F2735F"/>
+      <stop offset="0.3" stop-color="#F06863"/>
+      <stop offset="0.62" stop-color="#EB6069"/>
+      <stop offset="1" stop-color="#F27862"/>
+    </linearGradient>
+  </defs>
+  <!-- Reverse facet owns the whole rounded fold tip; the front facet tucks ~20px under it
+       along the crease (705,313)-(514,480), so the outer contour has no seam lips.
+       Stack the reverse group above the front group. -->
+  <path id="ribbon-front" fill="url(#washFront)" d="M207.8 385.3 Q448 349.2 705.3 313.1 Q727.1 310 742 330 L538 480 L514 480 Q359 481 207.8 503.4 Q190 506 190 488 L190 406 Q190 388 207.8 385.3 Z" transform="translate(20 0)" />
+  <path id="ribbon-reverse" fill="url(#washReverse)" d="M705.3 313.1 C776.1 303.1 798 341.1 753.9 397.4 L502.6 718.7 Q489 736 471.7 722.4 L419.6 681.8 Q402.3 668.2 416.2 651.1 Q470.8 584 514 480 Z" transform="translate(20 0)" />
 </svg>

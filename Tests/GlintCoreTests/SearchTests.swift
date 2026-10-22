@@ -79,3 +79,13 @@ private func app(_ id: String, _ name: String) -> AppEntry {
     #expect(restored == rules)
     #expect(Search.rank(apps, query: "", recent: [], current: "code", running: [], rules: rules).map(\.id) == ["work"])
 }
+
+@Test func emptyAppMetadataFallsBackToTheBundleFilename() {
+    let url = URL(fileURLWithPath: "/Applications/TeX/hintview.app")
+    for name in ["", " \n\t"] {
+        let entry = AppEntry(id: "edu.hm.cs.hint.hintview", name: name, url: url)
+        #expect(entry.name == "hintview")
+        #expect(Search.rank([entry], query: "hint", recent: [], current: nil, running: []).first?.id == entry.id)
+    }
+    #expect(AppEntry(id: "cafe", name: "Café", url: url).name == "Café")
+}

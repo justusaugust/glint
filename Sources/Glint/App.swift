@@ -126,7 +126,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
         }
         NSApp.mainMenu = main
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        status?.button?.image = NSImage(systemSymbolName: "sparkle.magnifyingglass", accessibilityDescription: "Glint")
+        let ribbon = NSImage(contentsOf: Bundle.main.url(forResource: "GlintRibbon", withExtension: "svg")!)!
+        let mark = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { frame in
+            ribbon.draw(in: frame, from: NSRect(x: 170, y: 180, width: 680, height: 680), operation: .sourceOver, fraction: 1)
+            return true
+        }
+        mark.isTemplate = true
+        mark.accessibilityDescription = "Glint"
+        status?.button?.image = mark
         status?.button?.toolTip = "Glint — app switcher"
         let menu = NSMenu()
         for (title, action, key) in [("Switch apps", #selector(showFromMenu), ""), ("Settings…", #selector(showSettings), ","),

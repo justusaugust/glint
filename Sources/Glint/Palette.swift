@@ -223,8 +223,8 @@ private final class GlassBackdrop: NSView {
         super.init(frame: NSRect(x: 0, y: 0, width: 688, height: 498))
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
-        glass.style = .clear
-        glass.tintColor = NSColor.windowBackgroundColor.withAlphaComponent(0.68)
+        glass.style = .regular
+        glass.appearance = NSAppearance(named: .darkAqua)
         glass.cornerRadius = 28
         glass.contentView = content
         glass.wantsLayer = true

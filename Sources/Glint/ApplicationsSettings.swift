@@ -9,6 +9,7 @@ final class ApplicationsSettings: NSViewController, NSTableViewDataSource, NSTab
     private let search = NSSearchField()
     private let table = NSTableView()
     private let name = NSTextField(labelWithString: "")
+    private let icon = NSImageView()
     private let aliases = NSTextField()
     private let pin = NSButton(checkboxWithTitle: "Pin above other suggestions", target: nil, action: nil)
     private let show = NSButton(checkboxWithTitle: "Show in launcher", target: nil, action: nil)
@@ -35,7 +36,7 @@ final class ApplicationsSettings: NSViewController, NSTableViewDataSource, NSTab
         search.delegate = self
         table.addTableColumn(NSTableColumn(identifier: .init("app")))
         table.headerView = nil
-        table.rowHeight = 30
+        table.rowHeight = 34
         table.style = .sourceList
         table.dataSource = self
         table.delegate = self
@@ -51,6 +52,10 @@ final class ApplicationsSettings: NSViewController, NSTableViewDataSource, NSTab
         list.spacing = 10
         name.font = .systemFont(ofSize: 17, weight: .semibold)
         name.lineBreakMode = .byTruncatingTail
+        icon.imageScaling = .scaleProportionallyDown
+        let header = NSStackView(views: [icon, name])
+        header.spacing = 12
+        header.alignment = .centerY
         aliases.placeholderString = "work, editor"
         aliases.setAccessibilityLabel("Aliases, separated by commas")
         aliases.delegate = self
@@ -63,7 +68,7 @@ final class ApplicationsSettings: NSViewController, NSTableViewDataSource, NSTab
         detail.orientation = .vertical
         detail.alignment = .leading
         detail.spacing = 14
-        for child in [name, label, aliases, pin, show, note] { detail.addArrangedSubview(child) }
+        for child in [header, label, aliases, pin, show, note] { detail.addArrangedSubview(child) }
         for child in [list, detail] { child.translatesAutoresizingMaskIntoConstraints = false; surface.addSubview(child) }
         NSLayoutConstraint.activate([
             list.leadingAnchor.constraint(equalTo: surface.leadingAnchor, constant: 20),
@@ -73,7 +78,9 @@ final class ApplicationsSettings: NSViewController, NSTableViewDataSource, NSTab
             detail.leadingAnchor.constraint(equalTo: list.trailingAnchor, constant: 24),
             detail.trailingAnchor.constraint(equalTo: surface.trailingAnchor, constant: -24),
             detail.topAnchor.constraint(equalTo: list.topAnchor, constant: 4),
-            name.widthAnchor.constraint(equalTo: detail.widthAnchor),
+            header.widthAnchor.constraint(equalTo: detail.widthAnchor),
+            icon.widthAnchor.constraint(equalToConstant: 36),
+            icon.heightAnchor.constraint(equalToConstant: 36),
             aliases.widthAnchor.constraint(equalTo: detail.widthAnchor),
             note.widthAnchor.constraint(equalTo: detail.widthAnchor)
         ])
@@ -83,11 +90,31 @@ final class ApplicationsSettings: NSViewController, NSTableViewDataSource, NSTab
     func numberOfRows(in tableView: NSTableView) -> Int { filtered.count }
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         let id = NSUserInterfaceItemIdentifier("app")
-        let cell = tableView.makeView(withIdentifier: id, owner: self) as? NSTextField ?? NSTextField(labelWithString: "")
-        cell.identifier = id
-        cell.lineBreakMode = .byTruncatingTail
-        cell.stringValue = filtered[row].name
-        cell.textColor = rules[filtered[row].id]?.excluded == true ? .secondaryLabelColor : .labelColor
+        let cell: NSTableCellView
+        if let existing = tableView.makeView(withIdentifier: id, owner: self) as? NSTableCellView {
+            cell = existing
+        } else {
+            cell = NSTableCellView()
+            cell.identifier = id
+            let image = NSImageView()
+            let label = NSTextField(labelWithString: "")
+            label.lineBreakMode = .byTruncatingTail
+            for child in [image, label] { child.translatesAutoresizingMaskIntoConstraints = false; cell.addSubview(child) }
+            cell.imageView = image
+            cell.textField = label
+            NSLayoutConstraint.activate([
+                image.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 2),
+                image.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+                image.widthAnchor.constraint(equalToConstant: 20), image.heightAnchor.constraint(equalToConstant: 20),
+                label.leadingAnchor.constraint(equalTo: image.trailingAnchor, constant: 8),
+                label.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+                label.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4)
+            ])
+        }
+        let app = filtered[row]
+        cell.textField?.stringValue = app.name
+        cell.textField?.textColor = rules[app.id]?.excluded == true ? .secondaryLabelColor : .labelColor
+        cell.imageView?.image = NSWorkspace.shared.icon(forFile: app.url.path)
         return cell
     }
     func tableViewSelectionDidChange(_ notification: Notification) {
@@ -97,6 +124,7 @@ final class ApplicationsSettings: NSViewController, NSTableViewDataSource, NSTab
         detail.isHidden = false
         let rule = rules[app.id] ?? AppRule()
         name.stringValue = app.name
+        icon.image = NSWorkspace.shared.icon(forFile: app.url.path)
         aliases.stringValue = rule.aliases.joined(separator: ", ")
         pin.state = rule.pinned ? .on : .off
         show.state = rule.excluded ? .off : .on

@@ -9,10 +9,11 @@ public struct AppEntry: Identifiable, Hashable, Sendable {
 
     public init(id: String, name: String, url: URL) {
         self.id = id
-        self.name = name
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.name = name.isEmpty ? url.deletingPathExtension().lastPathComponent : name
         self.url = url
-        self.searchName = Self.normalize(name)
-        self.initials = Self.normalize(name.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+        self.searchName = Self.normalize(self.name)
+        self.initials = Self.normalize(self.name.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
             .compactMap(\.first).map(String.init).joined())
     }
 
