@@ -98,3 +98,25 @@ import GlintCore
     try deliver(.flagsChanged, code: 54, flags: command.union(.maskShift))
     #expect(began == 1)
 }
+
+@MainActor @Test func reopeningAfterFilteringKeepsTheSearchAnchor() {
+    let palette = Palette()
+    defer { palette.orderOut(nil) }
+    let apps = (1...5).map { AppEntry(id: "app\($0)", name: "App \($0)", url: URL(fileURLWithPath: "/tmp/GlintTest\($0).app")) }
+    for hold in [true, false] {
+        palette.present(hold: hold)
+        palette.render(apps, running: [], count: 5)
+        let top = palette.frame.maxY
+        let expandedHeight = palette.frame.height
+        palette.receive(0, text: "app")
+        palette.render(Array(apps.prefix(1)), running: [], count: 5)
+        #expect(palette.frame.height < expandedHeight)
+        #expect(palette.frame.maxY == top)
+        // Shortcut cancellation hides the panel without resizing it.
+        palette.orderOut(nil)
+        palette.present(hold: hold)
+        palette.render(apps, running: [], count: 5)
+        #expect(palette.frame.maxY == top)
+        palette.orderOut(nil)
+    }
+}

@@ -2,6 +2,7 @@ import AppKit
 import GlintCore
 
 final class Palette: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
+    private static let initialSize = NSSize(width: 688, height: 498)
     private let queryField = NSTextField()
     private let footer = NSTextField(labelWithString: "")
     private let empty = NSTextField(labelWithString: "No matching apps")
@@ -22,7 +23,7 @@ final class Palette: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
     private(set) var query = ""
 
     init() {
-        super.init(contentRect: NSRect(x: 0, y: 0, width: 688, height: 498),
+        super.init(contentRect: NSRect(origin: .zero, size: Self.initialSize),
                    styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         title = "Glint"
         setAccessibilityTitle("Glint app switcher")
@@ -109,7 +110,8 @@ final class Palette: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
         selected = 0
         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
         if let rect = screen?.visibleFrame {
-            setFrameOrigin(NSPoint(x: rect.midX - frame.width / 2, y: rect.minY + rect.height * 0.64 - frame.height / 2))
+            setFrameTopLeftPoint(NSPoint(x: rect.midX - frame.width / 2,
+                                         y: rect.minY + rect.height * 0.64 + Self.initialSize.height / 2))
         }
         if hold { orderFrontRegardless() }
         else { makeKeyAndOrderFront(nil); makeFirstResponder(queryField) }
@@ -224,8 +226,8 @@ private final class GlassBackdrop: NSView {
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
         glass.style = .regular
-        glass.appearance = NSAppearance(named: .darkAqua)
-        glass.cornerRadius = 28
+        glass.cornerRadius = 36
+        if #available(macOS 27.0, *) { glass.effectIsInteractive = true }
         glass.contentView = content
         glass.wantsLayer = true
         addSubview(glass)
