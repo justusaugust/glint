@@ -208,3 +208,27 @@ import GlintCore
     palette.render([], running: [], count: 1)
     #expect(palette.frame.width == 540)
 }
+
+@MainActor @Test(arguments: [-1, 0, 1, 4]) func quitRefreshPreservesAnExplicitAppChoice(selection: Int) {
+    let palette = Palette()
+    defer { palette.orderOut(nil) }
+    let apps = ["Calendar", "Calculator", "Camera", "Canvas", "Capto", "Candy"].map {
+        AppEntry(id: $0, name: $0, url: URL(fileURLWithPath: "/tmp/\($0).app"))
+    }
+    var committed: String?
+    palette.onCommit = { committed = $0.id }
+    palette.present(hold: true)
+    palette.receive(0, text: "ca")
+    palette.render(Array(apps.prefix(5)), running: ["Calculator"], count: apps.count)
+    if selection >= 0 { palette.receive(0, text: String(selection + 1)) }
+    let top = palette.frame.maxY
+    let refreshed = [apps[1], apps[0], apps[2], apps[3], apps[5]]
+    palette.render(refreshed, running: [], count: apps.count)
+    palette.commit()
+    #expect(committed == (selection >= 0 ? apps[selection].id : "Calculator"))
+    #expect(palette.frame.maxY == top && palette.query == "ca")
+    palette.receive(0, text: "l")
+    palette.render(refreshed, running: [], count: apps.count)
+    palette.commit()
+    #expect(committed == "Calculator")
+}

@@ -72,7 +72,7 @@ import Testing
             let scores = model.probabilities(appIDs: candidates, source: event.source, previous: event.previous, recent: recent, at: event.timestamp)
             let elapsed = start.duration(to: .now)
             timings.append(Double(elapsed.components.seconds) * 1_000 + Double(elapsed.components.attoseconds) / 1e15)
-            let ranked = Search.rank(apps, query: "", recent: recent, current: event.source, running: [], limit: candidates.count, predictions: scores).map(\.id)
+            let ranked = Search.rank(apps, query: "", recent: recent, current: event.source, running: [event.source], limit: candidates.count, predictions: scores).map(\.id)
             let rank = try #require(ranked.firstIndex(of: event.target)) + 1
             for (j, limit) in [1, 3, 5].enumerated() { hits[j] += rank <= limit ? 1 : 0 }
             reciprocal += 1 / Double(rank)
@@ -88,4 +88,21 @@ import Testing
     print("Swift held-out replay: n=\(n), top1=\(hits[0])/\(n), top3=\(hits[1])/\(n), top5=\(hits[2])/\(n), MRR=\(reciprocal / Double(n)), p50=\(timings[timings.count/2])ms, p95=\(timings[Int(Double(timings.count)*0.95)])ms")
     #expect(hits[2] >= hits[1] && hits[1] >= hits[0])
     #expect(timings[Int(Double(timings.count) * 0.95)] < 10)
+}
+
+@Test func sourceEligibilityDoesNotChangeNormalNextAppPredictions() {
+    let now = 1_800_000_000.0
+    var model = Predictor()
+    model.observe(SwitchEvent(timestamp: now, previous: nil, source: "editor", target: "calculator"))
+    let normal = model.probabilities(appIDs: ["editor", "calculator"], source: "calculator",
+                                     previous: "editor", recent: ["calculator", "editor"], at: now)
+    let searched = model.probabilities(appIDs: ["editor", "calculator"], source: "calculator",
+                                       previous: "editor", recent: ["calculator", "editor"], includeSource: true, at: now)
+    #expect(normal["calculator"] == nil)
+    #expect(searched["calculator", default: 0] > 0)
+    #expect(abs(searched.values.reduce(0, +) - 1) < 0.000_001)
+    #expect(model.probabilities(appIDs: ["calculator"], source: "calculator", previous: nil,
+                              recent: [], includeSource: true, at: now) == ["calculator": 1])
+    #expect(model.probabilities(appIDs: [], source: "calculator", previous: nil,
+                              recent: [], includeSource: true, at: now).isEmpty)
 }

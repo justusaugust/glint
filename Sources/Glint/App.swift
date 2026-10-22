@@ -14,6 +14,22 @@ import UniformTypeIdentifiers
     }
 }
 
+struct RankingContext {
+    let predictor: Predictor
+    let recent: [String]
+    let source: String?
+    let timestamp: Double
+
+    func rank(_ apps: [AppEntry], query: String, running: Set<String>, rules: [String: AppRule] = [:]) -> [AppEntry] {
+        let sourceID = source ?? ""
+        let probabilities = predictor.count == 0 ? [:] : predictor.probabilities(
+            appIDs: apps.map(\.id), source: sourceID, previous: recent.first { $0 != sourceID },
+            recent: recent, includeSource: !AppEntry.normalize(query).isEmpty || !running.contains(sourceID), at: timestamp)
+        return Search.rank(apps, query: query, recent: recent, current: source,
+                           running: running, predictions: probabilities, rules: rules)
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
     private let catalog = Catalog()
     private let shortcut = Shortcut()
@@ -33,7 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
     private var history: HistoryStore?
     private var learningError: String?
     private var current: String?
-    private var context: String?
+    private var rankingContext: RankingContext?
     private var restoringFocus = false
     private var fallbackAvailable = false
     private var localInteractionMonitor: Any?
@@ -77,7 +93,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
         palette.onSettings = { [weak self] in self?.showSettings() }
         shortcut.begin = { [weak self] in self?.show(hold: true) }
         shortcut.commit = { [weak self] in self?.palette.releaseHold() }
-        shortcut.cancel = { [weak self] in self?.palette.orderOut(nil) }
+        shortcut.cancel = { [weak self] in
+            self?.rankingContext = nil
+            self?.palette.orderOut(nil)
+        }
         shortcut.input = { [weak self] code, text, literal in self?.palette.receive(code, text: text, literalNumber: literal) }
         fallbackAvailable = shortcut.installFallback { [weak self] in
             guard let self else { return }
@@ -171,22 +190,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
         appLauncher.cancel()
         guard !restoringFocus else { return }
         let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-        context = front == Bundle.main.bundleIdentifier ? current : front ?? current
+        let source = front == Bundle.main.bundleIdentifier ? current : front ?? current
+        // Keep this gesture stable while automatic focus changes keep training the next one.
+        rankingContext = RankingContext(predictor: predictor, recent: recent, source: source,
+                                        timestamp: Date().timeIntervalSince1970)
         palette.present(hold: hold)
         catalog.mergeRunning()
     }
 
-    private func dismiss() { shortcut.cancelHold(); palette.orderOut(nil) }
+    private func dismiss() { rankingContext = nil; shortcut.cancelHold(); palette.orderOut(nil) }
 
     private func updateResults() {
-        guard palette.isVisible else { return }
+        guard palette.isVisible, let rankingContext else { return }
         let running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
         let regular = Set(NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular }.compactMap(\.bundleIdentifier))
-        let source = context ?? current ?? ""
-        let probabilities = predictor.probabilities(appIDs: catalog.apps.map(\.id), source: source,
-            previous: recent.first { $0 != source }, recent: recent)
-        let results = Search.rank(catalog.apps, query: palette.query, recent: recent, current: context ?? current,
-                                  running: regular, predictions: predictor.count > 0 ? probabilities : [:], rules: appRules)
+        let results = rankingContext.rank(catalog.apps, query: palette.query, running: regular, rules: appRules)
         palette.render(results, running: running, count: catalog.apps.count)
     }
 
@@ -523,8 +541,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
 
     private func diagnostics() async {
         let apps = await AppScanner.scan(extra: [])
+        let running = Set(NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular }.compactMap(\.bundleIdentifier))
         let start = ContinuousClock.now
-        for _ in 0..<1_000 { _ = Search.rank(apps, query: "cod", recent: recent, current: current, running: []) }
+        for _ in 0..<1_000 { _ = Search.rank(apps, query: "cod", recent: recent, current: current, running: running) }
         print("Catalog: \(apps.count) installed applications")
         print("1,000 searches: \(start.duration(to: .now))")
         print("Accessibility: \(AXIsProcessTrusted()); hold hook: \(shortcut.enabled); fallback: \(fallbackAvailable)")

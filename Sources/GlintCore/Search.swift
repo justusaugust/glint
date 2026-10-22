@@ -64,9 +64,11 @@ public enum Search {
             let learned = predictions.isEmpty
                 ? recency[app.id, default: 0] * 100 + (running.contains(app.id) ? 10 : 0)
                 : Int(predictions[app.id, default: 0] * 1_000_000)
-            let priority = learned + (rule?.pinned == true ? 2_000_000 : 0)
+            // An exited source is an immediate reopen suggestion; pins and text tiers still lead.
+            let reopening = app.id == current && !running.contains(app.id)
+            let priority = learned + (rule?.pinned == true ? 2_000_000 : 0) + (reopening ? 1_000_000 : 0)
             if query.isEmpty {
-                guard app.id != current else { return nil }
+                guard app.id != current || reopening else { return nil }
                 return (app, priority)
             }
             let aliasMatch = rule?.aliases.compactMap { alias -> Int? in

@@ -50,8 +50,8 @@ public struct Predictor: Sendable {
     }
 
     public func probabilities(appIDs: [String], source: String, previous: String?, recent: [String],
-                              at timestamp: Double = Date().timeIntervalSince1970) -> [String: Double] {
-        let candidates = Array(Set(appIDs)).filter { $0 != source }
+                              includeSource: Bool = false, at timestamp: Double = Date().timeIntervalSince1970) -> [String: Double] {
+        let candidates = Array(Set(appIDs)).filter { includeSource || $0 != source }
         guard !candidates.isEmpty else { return [:] }
         let keys = keys(source: source, previous: previous, at: timestamp)
         let global = tables["global"]?.values(at: timestamp) ?? [:]

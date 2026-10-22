@@ -40,6 +40,7 @@ final class Palette: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
     private let container = NSView()
     private var items: [AppEntry] = []
     private var selected = 0
+    private var explicitApp: AppEntry?
     private var running: Set<String> = []
     private var icons: [URL: NSImage] = [:]
     private var lastMousePosition = NSEvent.mouseLocation
@@ -176,6 +177,7 @@ final class Palette: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
         query = ""
         queryField.stringValue = ""
         selected = 0
+        explicitApp = nil
         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
         if let rect = screen?.visibleFrame {
             setFrame(Self.placement(in: rect, height: frame.height), display: isVisible)
@@ -185,12 +187,16 @@ final class Palette: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
         assert(!hold || (!isKeyWindow && queryField.currentEditor() == nil))
     }
 
-    func render(_ apps: [AppEntry], running: Set<String>, count: Int) {
+    func render(_ results: [AppEntry], running: Set<String>, count: Int) {
         guard windowSession == nil else { return }
+        var apps = results
+        if let explicitApp, !apps.contains(where: { $0.id == explicitApp.id }) {
+            apps = Array(apps.prefix(4)) + [explicitApp]
+        }
         items = apps
         catalogCount = count
         self.running = running
-        selected = min(selected, max(0, items.count - 1))
+        selected = explicitApp.flatMap { choice in apps.firstIndex { $0.id == choice.id } } ?? 0
         for view in rows.arrangedSubviews { rows.removeArrangedSubview(view); view.removeFromSuperview() }
         for (index, app) in apps.enumerated() {
             let icon = icons[app.url] ?? NSWorkspace.shared.icon(forFile: app.url.path)
@@ -259,6 +265,7 @@ final class Palette: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
         clearWindows()
         query = session.appQuery
         selected = session.appSelection
+        explicitApp = session.app
         syncQueryField()
         render(items, running: running, count: catalogCount)
         return true
@@ -416,7 +423,9 @@ final class Palette: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
 
     private func select(_ index: Int) {
         let count = windowSession == nil ? items.count : matchingWindows.count
-        guard (0..<count).contains(index), selected != index else { return }
+        guard (0..<count).contains(index) else { return }
+        if windowSession == nil { explicitApp = items[index] }
+        guard selected != index else { return }
         let oldPage = selected / 3
         selected = index
         if windowSession != nil, selected / 3 != oldPage { renderWindows(); return }
@@ -500,6 +509,7 @@ final class Palette: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
 
     private func queryChanged() {
         selected = 0
+        explicitApp = nil
         if queryField.stringValue != query { queryField.stringValue = query }
         if windowSession != nil { renderWindows() }
         else { onQuery?(query) }

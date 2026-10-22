@@ -33,6 +33,8 @@ The build uses an available Apple Development identity to keep local permissions
 
 Predictions combine a smoothed app-to-app model with recency and time context. Repeated short-sequence evidence can outweigh recency as confidence grows. Explicit text matches always take priority over predictions.
 
+Typing includes the source app in learned ranking. Once it exits, it leads matching suggestions for immediate reopening; pins and stronger text matches still take priority. Empty suggestions omit it while it is running. Learning and recent context stay fixed for each presentation, so an automatic focus handoff cannot rewrite the ranking mid-selection. Learning continues for the next presentation. An explicit app choice stays selected and visible through refreshes, until you type a new query or dismiss the palette.
+
 Settings → Learning can import Applight's local history. Choose its containing folder so SQLite can read its journal. Imports are read-only and skip duplicates. Glint is an independent implementation and contains no Applight code or assets.
 
 Data stays in `~/Library/Application Support/Glint/switches.sqlite`. Startup reads the most recent 100,000 switches; older records remain stored. This repository contains no personal history. To run an optional chronological replay on your own data, provide `GLINT_HISTORY_PATH` pointing to a JSON array of `SwitchEvent` records. The test prints aggregate accuracy and latency locally.

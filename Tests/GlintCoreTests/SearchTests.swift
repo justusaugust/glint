@@ -77,7 +77,7 @@ private func app(_ id: String, _ name: String) -> AppEntry {
     #expect(rules["code"]?.aliases == ["editor", "work"])
     let restored = try PropertyListDecoder().decode([String: AppRule].self, from: PropertyListEncoder().encode(rules))
     #expect(restored == rules)
-    #expect(Search.rank(apps, query: "", recent: [], current: "code", running: [], rules: rules).map(\.id) == ["work"])
+    #expect(Search.rank(apps, query: "", recent: [], current: "code", running: ["code"], rules: rules).map(\.id) == ["work"])
 }
 
 @Test func emptyAppMetadataFallsBackToTheBundleFilename() {
@@ -88,4 +88,20 @@ private func app(_ id: String, _ name: String) -> AppEntry {
         #expect(Search.rank([entry], query: "hint", recent: [], current: nil, running: []).first?.id == entry.id)
     }
     #expect(AppEntry(id: "cafe", name: "Café", url: url).name == "Café")
+}
+
+@Test func quitSourceLeadsSuggestionsWithoutOverridingTextPinsOrExclusions() {
+    let apps = [app("calculator", "Calculator"), app("calendar", "Calendar"), app("editor", "Editor")]
+    let predictions = ["calculator": 0.001, "calendar": 0.999]
+    func find(_ running: Set<String>, query: String = "", rules: [String: AppRule] = [:]) -> [String] {
+        Search.rank(apps, query: query, recent: ["calculator", "editor", "calendar"], current: "calculator",
+                    running: running, predictions: predictions, rules: rules).map(\.id)
+    }
+    #expect(find(["editor"]).first == "calculator")
+    #expect(find(["editor"], query: "ca").first == "calculator")
+    #expect(find(["editor"], query: "Calendar").first == "calendar")
+    #expect(find(["calculator", "editor"], query: "ca").first == "calendar")
+    #expect(!find(["calculator", "editor"]).contains("calculator"))
+    #expect(find(["editor"], rules: ["calendar": AppRule(pinned: true)]).first == "calendar")
+    #expect(!find(["editor"], rules: ["calculator": AppRule(excluded: true)]).contains("calculator"))
 }
