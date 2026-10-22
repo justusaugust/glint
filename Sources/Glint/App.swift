@@ -14,19 +14,41 @@ import UniformTypeIdentifiers
     }
 }
 
-struct RankingContext {
+final class RankingContext {
     let predictor: Predictor
     let recent: [String]
     let source: String?
     let timestamp: Double
+    private var cachedAppIDs: [String]?
+    private var cachedProbabilities: [Bool: [String: Double]] = [:]
+
+    init(predictor: Predictor, recent: [String], source: String?, timestamp: Double) {
+        self.predictor = predictor
+        self.recent = recent
+        self.source = source
+        self.timestamp = timestamp
+    }
+
+    func probabilities(for apps: [AppEntry], includeSource: Bool) -> [String: Double] {
+        guard predictor.count > 0 else { return [:] }
+        let ids = apps.map(\.id)
+        if cachedAppIDs != ids {
+            cachedAppIDs = ids
+            cachedProbabilities.removeAll(keepingCapacity: true)
+        }
+        if let cached = cachedProbabilities[includeSource] { return cached }
+        let sourceID = source ?? ""
+        let calculated = predictor.probabilities(appIDs: ids, source: sourceID,
+            previous: recent.first { $0 != sourceID }, recent: recent, includeSource: includeSource, at: timestamp)
+        cachedProbabilities[includeSource] = calculated
+        return calculated
+    }
 
     func rank(_ apps: [AppEntry], query: String, running: Set<String>, rules: [String: AppRule] = [:]) -> [AppEntry] {
-        let sourceID = source ?? ""
-        let probabilities = predictor.count == 0 ? [:] : predictor.probabilities(
-            appIDs: apps.map(\.id), source: sourceID, previous: recent.first { $0 != sourceID },
-            recent: recent, includeSource: !AppEntry.normalize(query).isEmpty || !running.contains(sourceID), at: timestamp)
+        let weights = probabilities(for: apps,
+            includeSource: !AppEntry.normalize(query).isEmpty || !running.contains(source ?? ""))
         return Search.rank(apps, query: query, recent: recent, current: source,
-                           running: running, predictions: probabilities, rules: rules)
+                           running: running, predictions: weights, rules: rules)
     }
 }
 
