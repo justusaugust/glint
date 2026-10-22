@@ -1,0 +1,16 @@
+name: Build and test
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  macos:
+    runs-on: xcode-27
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test
+        run: swift test --build-system native -c release --disable-sandbox
+      - name: Build app and layered icon
+        env:
+          CODE_SIGN_IDENTITY: '-'
+        run: ./build.sh

@@ -1,0 +1,57 @@
+{
+  "features": [
+    "refractivity"
+  ],
+  "fill": {
+    "automatic-gradient": "extended-srgb:0.04706,0.27059,0.85882,1.00000"
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "GlintBack.svg",
+          "name": "Rear pane"
+        }
+      ],
+      "name": "Rear pane",
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.4
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.42
+      },
+      "refractivity": {
+        "depth": 0.18,
+        "enabled": true,
+        "strength": 0.35
+      }
+    },
+    {
+      "layers": [
+        {
+          "image-name": "GlintFront.svg",
+          "name": "Front pane"
+        }
+      ],
+      "name": "Front pane",
+      "refractivity": {
+        "depth": 0.32,
+        "enabled": true,
+        "strength": 0.6
+      },
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.55
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.28
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared"
+  }
+}

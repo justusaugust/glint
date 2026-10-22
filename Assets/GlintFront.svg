@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>Glint front pane</title>
+  <!-- Front pane, lower-right: 456x372 at (368,402), r88. Shares canvas with GlintBack.svg. -->
+  <path id="pane-front" fill="#F4F8FD"
+    d="M456 402 H736 A88 88 0 0 1 824 490 V686 A88 88 0 0 1 736 774 H456 A88 88 0 0 1 368 686 V490 A88 88 0 0 1 456 402 Z"/>
+</svg>

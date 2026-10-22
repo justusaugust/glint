@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>Glint rear pane</title>
+  <!-- Rear pane, upper-left: 456x372 at (188,238), r88. Shares canvas with GlintFront.svg. -->
+  <path id="pane-back" fill="#CFE0F5"
+    d="M276 238 H556 A88 88 0 0 1 644 326 V522 A88 88 0 0 1 556 610 H276 A88 88 0 0 1 188 522 V326 A88 88 0 0 1 276 238 Z"/>
+</svg>
