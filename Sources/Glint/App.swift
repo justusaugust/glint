@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
     private let catalog = Catalog()
     private let shortcut = Shortcut()
     private let palette = Palette()
+    private let appLauncher = AppLauncher()
     private var status: NSStatusItem?
     private var settings: NSWindow?
     private var settingsTab = NSToolbarItem.Identifier("keyboard")
@@ -35,8 +36,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
     private var context: String?
     private var restoringFocus = false
     private var fallbackAvailable = false
-    private var localMouseMonitor: Any?
-    private var globalMouseMonitor: Any?
+    private var localInteractionMonitor: Any?
+    private var globalInteractionMonitor: Any?
     private let defaults = UserDefaults.standard
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -57,10 +58,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
         palette.holdLabel = shortcut.key.glyph
         palette.onQuery = { [weak self] _ in self?.updateResults() }
         palette.onCommit = { [weak self] app in self?.open(app) }
+        palette.loadWindows = { app in
+            guard let running = NSRunningApplication.runningApplications(withBundleIdentifier: app.id).first else { return .success([]) }
+            return await WindowAccess.list(pid: running.processIdentifier)
+        }
+        palette.loadPreviews = { app, windows, receive in
+            guard let running = NSRunningApplication.runningApplications(withBundleIdentifier: app.id).first else { return }
+            await WindowPreviews.capture(windows, pid: running.processIdentifier, receive: receive)
+        }
+        palette.onEnablePreviews = {
+            if CGRequestScreenCaptureAccess() { return true }
+            NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/System Settings.app"))
+            return false
+        }
+        palette.onWindowCommit = { [weak self] app, window in self?.openWindow(window, in: app) }
+        shortcut.escape = { [weak self] in self?.palette.backFromWindows() ?? false }
         palette.onCancel = { [weak self] in self?.dismiss() }
         palette.onSettings = { [weak self] in self?.showSettings() }
         shortcut.begin = { [weak self] in self?.show(hold: true) }
-        shortcut.commit = { [weak self] in self?.palette.commit() }
+        shortcut.commit = { [weak self] in self?.palette.releaseHold() }
         shortcut.cancel = { [weak self] in self?.palette.orderOut(nil) }
         shortcut.input = { [weak self] code, text, literal in self?.palette.receive(code, text: text, literalNumber: literal) }
         fallbackAvailable = shortcut.installFallback { [weak self] in
@@ -83,12 +99,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
         center.addObserver(self, selector: #selector(sleeping), name: NSWorkspace.willSleepNotification, object: nil)
         center.addObserver(self, selector: #selector(waking), name: NSWorkspace.didWakeNotification, object: nil)
         record(NSWorkspace.shared.frontmostApplication)
-        localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
-            if let self, palette.isVisible, event.window !== palette { dismiss() }
+        localInteractionMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { [weak self] event in
+            self?.appLauncher.cancel()
+            if event.type != .keyDown, let self, palette.isVisible, event.window !== palette { dismiss() }
             return event
         }
-        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            self?.dismiss()
+        globalInteractionMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { [weak self] event in
+            self?.appLauncher.cancel()
+            if event.type != .keyDown { self?.dismiss() }
         }
         if CommandLine.arguments.contains("--diagnostics") {
             Task { await diagnostics(); NSApp.terminate(nil) }
@@ -99,9 +117,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         catalog.stop()
+        appLauncher.cancel()
         shortcut.stop()
-        if let localMouseMonitor { NSEvent.removeMonitor(localMouseMonitor) }
-        if let globalMouseMonitor { NSEvent.removeMonitor(globalMouseMonitor) }
+        if let localInteractionMonitor { NSEvent.removeMonitor(localInteractionMonitor) }
+        if let globalInteractionMonitor { NSEvent.removeMonitor(globalInteractionMonitor) }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -149,6 +168,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
 
     @objc private func showFromMenu() { show(hold: false) }
     private func show(hold: Bool) {
+        appLauncher.cancel()
         guard !restoringFocus else { return }
         let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         context = front == Bundle.main.bundleIdentifier ? current : front ?? current
@@ -173,23 +193,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
     private func open(_ app: AppEntry) {
         guard !restoringFocus else { return }
         dismiss()
+        appLauncher.cancel()
         restoringFocus = true
-        Task {
+        Task { [self] in
             defer { restoringFocus = false }
             do {
-                let running = NSRunningApplication.runningApplications(withBundleIdentifier: app.id).first
-                running?.unhide()
-                let configuration = NSWorkspace.OpenConfiguration()
-                configuration.activates = true
-                configuration.addsToRecentItems = false
-                configuration.createsNewApplicationInstance = false
-                // Reopen is essential: activation alone leaves apps with no windows invisible.
-                configuration.appleEvent = NSAppleEventDescriptor(eventClass: AEEventClass(kCoreEventClass),
-                    eventID: AEEventID(kAEReopenApplication), targetDescriptor: nil,
-                    returnID: AEReturnID(kAutoGenerateReturnID), transactionID: AETransactionID(kAnyTransactionID))
-                let launched = try await NSWorkspace.shared.openApplication(at: running?.bundleURL ?? app.url, configuration: configuration)
-                if !launched.isActive { launched.activate() }
+                try await appLauncher.open(app) { [weak self] in self?.open(app) }
             } catch {
+                appLauncher.cancel()
                 let alert = NSAlert()
                 alert.messageText = "Couldn’t open \(app.name)"
                 alert.informativeText = "\(error.localizedDescription)\n\nIf the app moved, refresh the app list."
@@ -198,6 +209,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
                 NSApp.activate()
                 if alert.runModal() == .alertFirstButtonReturn { catalog.refresh() }
             }
+        }
+    }
+
+    private func openWindow(_ window: WindowEntry, in app: AppEntry) {
+        guard !restoringFocus else { return }
+        dismiss()
+        appLauncher.cancel()
+        restoringFocus = true
+        Task {
+            let running = NSRunningApplication.runningApplications(withBundleIdentifier: app.id).first
+            running?.unhide()
+            running?.activate()
+            let focused = await WindowAccess.focus(window)
+            restoringFocus = false
+            if !focused { open(app) }
         }
     }
 
@@ -225,7 +251,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
     }
 
     @objc private func appsChanged() { catalog.mergeRunning() }
-    @objc private func sleeping() { dismiss(); shortcut.reset() }
+    @objc private func sleeping() { appLauncher.cancel(); dismiss(); palette.discardPreviewCache(); shortcut.reset() }
     @objc private func waking() {
         shortcut.reset()
         if defaults.bool(forKey: "holdEnabled") { shortcut.start() }

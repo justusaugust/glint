@@ -28,6 +28,7 @@ final class Shortcut {
     var begin: (() -> Void)?
     var commit: (() -> Void)?
     var cancel: (() -> Void)?
+    var escape: (() -> Bool)?
     var input: ((CGKeyCode, String, Bool) -> Void)?
     private var port: CFMachPort?
     private var source: CFRunLoopSource?
@@ -112,7 +113,7 @@ final class Shortcut {
         if type == .leftMouseDown || type == .rightMouseDown { return false }
         guard holding, type == .keyDown else { return false }
         swallowed.insert(code)
-        if code == kVK_Escape { cancelHold(); return true }
+        if code == kVK_Escape { if escape?() != true { cancelHold() }; return true }
         var characters = [UniChar](repeating: 0, count: 64)
         var count = 0
         event.keyboardGetUnicodeString(maxStringLength: characters.count, actualStringLength: &count, unicodeString: &characters)
