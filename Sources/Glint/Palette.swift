@@ -36,7 +36,7 @@ final class Palette: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
         animationBehavior = .none
         delegate = self
 
-        // Glass refraction and its shadow need space outside the visible rounded surface.
+        // Glass refraction needs space outside the visible rounded surface.
         contentView = GlassBackdrop(content: container)
 
         let searchIcon = NSImageView(image: NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil)!)
@@ -196,17 +196,12 @@ private final class GlassBackdrop: NSView {
         glass.cornerRadius = 28
         glass.contentView = content
         glass.wantsLayer = true
-        glass.layer?.shadowColor = NSColor.black.cgColor
-        glass.layer?.shadowOpacity = 0.32
-        glass.layer?.shadowRadius = 14
-        glass.layer?.shadowOffset = CGSize(width: 0, height: -6)
         addSubview(glass)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
     override func layout() {
         super.layout()
         glass.frame = bounds.insetBy(dx: 24, dy: 24)
-        glass.layer?.shadowPath = CGPath(roundedRect: glass.bounds, cornerWidth: 28, cornerHeight: 28, transform: nil)
     }
 }
 
