@@ -69,6 +69,7 @@ final class Palette: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
         empty.textColor = .secondaryLabelColor
         add(empty)
         footer.font = .systemFont(ofSize: 11, weight: .medium)
+        footer.lineBreakMode = .byTruncatingTail
         footer.textColor = .secondaryLabelColor
         add(footer)
 
@@ -88,8 +89,23 @@ final class Palette: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
             empty.centerXAnchor.constraint(equalTo: container.centerXAnchor),
             empty.topAnchor.constraint(equalTo: container.topAnchor, constant: 112),
             footer.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 27),
+            footer.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor, constant: -27),
             footer.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -17)
         ])
+        NotificationCenter.default.addObserver(self, selector: #selector(displayParametersChanged),
+            name: NSApplication.didChangeScreenParametersNotification, object: nil)
+    }
+
+    @objc private func displayParametersChanged() {
+        onCancel?()
+        orderOut(nil)
+    }
+
+    static func placement(in visibleFrame: NSRect, height: CGFloat) -> NSRect {
+        let width = min(initialSize.width, visibleFrame.width)
+        let preferredTop = visibleFrame.minY + visibleFrame.height * 0.64 + initialSize.height / 2
+        let top = min(visibleFrame.maxY, max(visibleFrame.minY + initialSize.height, preferredTop))
+        return NSRect(x: visibleFrame.midX - width / 2, y: top-height, width: width, height: height)
     }
 
     override var canBecomeKey: Bool { !isHold }
@@ -110,8 +126,7 @@ final class Palette: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
         selected = 0
         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
         if let rect = screen?.visibleFrame {
-            setFrameTopLeftPoint(NSPoint(x: rect.midX - frame.width / 2,
-                                         y: rect.minY + rect.height * 0.64 + Self.initialSize.height / 2))
+            setFrame(Self.placement(in: rect, height: frame.height), display: isVisible)
         }
         if hold { orderFrontRegardless() }
         else { makeKeyAndOrderFront(nil); makeFirstResponder(queryField) }
@@ -144,7 +159,7 @@ final class Palette: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
             : "↵ to open    1–5 to choose    ⇧number to type a digit    esc to close    \(count) apps"
         let height = CGFloat(max(1, apps.count)) * 62 + 134
         let top = frame.maxY
-        setFrame(NSRect(x: frame.minX, y: top - height - 48, width: 688, height: height + 48), display: isVisible)
+        setFrame(NSRect(x: frame.minX, y: top - height - 48, width: frame.width, height: height + 48), display: isVisible)
     }
 
     private func select(_ index: Int) {

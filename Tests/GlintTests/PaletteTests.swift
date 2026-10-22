@@ -120,3 +120,91 @@ import GlintCore
         palette.orderOut(nil)
     }
 }
+
+
+@MainActor @Test(arguments: [
+    NSRect(x: 0, y: 0, width: 2056, height: 1290),
+    NSRect(x: 2056, y: 40, width: 1920, height: 1040),
+    NSRect(x: -1080, y: -160, width: 1080, height: 1880),
+    NSRect(x: -540, y: 0, width: 540, height: 960),
+    NSRect(x: 0, y: 1329, width: 1920, height: 1040),
+    NSRect(x: 0, y: -1080, width: 1920, height: 1040),
+    NSRect(x: 0, y: 0, width: 800, height: 600)
+]) func panelPlacementFitsAvailableDisplay(_ visibleFrame: NSRect) {
+    let compact = Palette.placement(in: visibleFrame, height: 244)
+    let expanded = Palette.placement(in: visibleFrame, height: 492)
+    #expect(visibleFrame.contains(compact))
+    #expect(visibleFrame.contains(expanded))
+    #expect(compact.maxY == expanded.maxY)
+}
+
+@MainActor @Test func displayReconfigurationCancelsAnActiveHold() throws {
+    let palette = Palette()
+    let shortcut = Shortcut()
+    defer { palette.orderOut(nil) }
+    var commits = 0
+    shortcut.begin = { [weak palette] in palette?.present(hold: true) }
+    shortcut.cancel = { [weak palette] in palette?.orderOut(nil) }
+    shortcut.commit = { commits += 1 }
+    palette.onCancel = { [weak shortcut] in shortcut?.cancelHold() }
+    let command = CGEventFlags(rawValue: CGEventFlags.maskCommand.rawValue | HoldKey.rightCommand.deviceMask)
+    func modifier(_ flags: CGEventFlags) throws {
+        let event = try #require(CGEvent(keyboardEventSource: nil, virtualKey: 54, keyDown: true))
+        event.flags = flags
+        _ = shortcut.receive(.flagsChanged, event)
+    }
+    try modifier(command)
+    #expect(palette.isVisible && shortcut.holding)
+    NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: NSApplication.shared)
+    #expect(!palette.isVisible && !shortcut.holding)
+    try modifier([])
+    #expect(commits == 0)
+    try modifier(command)
+    #expect(palette.isVisible && shortcut.holding)
+    try modifier([])
+    #expect(commits == 1)
+}
+
+
+@MainActor @Test func interruptedHoldResetsWithoutAStaleCommitOrSwallowedKey() throws {
+    for interruption: CGEventType? in [nil, .tapDisabledByTimeout, .tapDisabledByUserInput] {
+        let shortcut = Shortcut()
+        var begins = 0, commits = 0
+        shortcut.begin = { begins += 1 }
+        shortcut.commit = { commits += 1 }
+        let command = CGEventFlags(rawValue: CGEventFlags.maskCommand.rawValue | HoldKey.rightCommand.deviceMask)
+        func event(code: UInt16, flags: CGEventFlags) throws -> CGEvent {
+            let event = try #require(CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: true))
+            event.flags = flags
+            return event
+        }
+        let down = try event(code: 54, flags: command)
+        let up = try event(code: 54, flags: [])
+        let letter = try event(code: 0, flags: command)
+        _ = shortcut.receive(.flagsChanged, down)
+        #expect(shortcut.receive(.keyDown, letter))
+        if let interruption { _ = shortcut.receive(interruption, letter) }
+        else { shortcut.reset() }
+        #expect(!shortcut.holding)
+        #expect(!shortcut.receive(.keyUp, letter))
+        _ = shortcut.receive(.flagsChanged, up)
+        #expect(commits == 0)
+        _ = shortcut.receive(.flagsChanged, down)
+        #expect(shortcut.holding)
+        _ = shortcut.receive(.flagsChanged, up)
+        #expect(begins == 2 && commits == 1)
+    }
+}
+
+
+@MainActor @Test func filteredResultsKeepTheDisplayConstrainedWidth() {
+    let palette = Palette()
+    defer { palette.orderOut(nil) }
+    let app = AppEntry(id: "app", name: "App", url: URL(fileURLWithPath: "/tmp/GlintTest.app"))
+    palette.setFrame(NSRect(x: -540, y: 0, width: 540, height: 498), display: false)
+    palette.render([app], running: [], count: 1)
+    #expect(palette.frame.width == 540)
+    palette.receive(0, text: "app")
+    palette.render([], running: [], count: 1)
+    #expect(palette.frame.width == 540)
+}
