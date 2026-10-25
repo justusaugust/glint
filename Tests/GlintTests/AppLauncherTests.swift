@@ -5,6 +5,62 @@ import Testing
 @testable import Glint
 
 @Suite(.serialized) @MainActor struct AppLauncherTests {
+    @Test func laterInputSuppressesFailureFromAnOldLaunchRequest() async throws {
+        var pending: CheckedContinuation<NSRunningApplication, Error>?
+        let launcher = AppLauncher(recoverApplication: { _ in nil }, openApplication: { _, _ in
+            try await withCheckedThrowingContinuation { pending = $0 }
+        })
+        let entry = AppEntry(id: "local.glint.test.cancelled", name: "Cancelled", url: URL(fileURLWithPath: "/tmp/Cancelled.app"))
+        let opening = Task { try await launcher.open(entry, retry: {}) }
+        await Task.yield()
+        let reply = try #require(pending)
+        launcher.cancel()
+        reply.resume(throwing: NSError(domain: NSOSStatusErrorDomain, code: -600))
+        try await opening.value
+    }
+
+    @Test func errorReplyWithVerifiedWindowIsSuccessful() async throws {
+        var recoveryCalls = 0
+        var openCalls = 0
+        let url = URL(fileURLWithPath: "/tmp/GlintReady.app")
+        let launcher = AppLauncher(recoverApplication: { requestedURL in
+            #expect(requestedURL == url)
+            recoveryCalls += 1
+            return NSRunningApplication.current
+        }, openApplication: { _, _ in
+            openCalls += 1
+            throw NSError(domain: NSOSStatusErrorDomain, code: -600)
+        })
+        let result = try await launcher.launch(at: url, configuration: NSWorkspace.OpenConfiguration())
+        #expect(result.processIdentifier == getpid() && openCalls == 1 && recoveryCalls == 1)
+    }
+
+    @Test func failedReopenAndFallbackCanRecoverTheReplacementWindow() async throws {
+        var recoveryCalls = 0
+        var openCalls = 0
+        let launcher = AppLauncher(recoverApplication: { _ in
+            recoveryCalls += 1
+            return NSRunningApplication.current
+        }, openApplication: { _, _ in
+            openCalls += 1
+            throw NSError(domain: NSOSStatusErrorDomain, code: -600)
+        })
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.appleEvent = NSAppleEventDescriptor.null()
+        _ = try await launcher.launch(at: URL(fileURLWithPath: "/tmp/GlintReady.app"), configuration: configuration)
+        #expect(openCalls == 2 && recoveryCalls == 1)
+    }
+
+    @Test func successfulReplyDoesNotInspectWindowsOrWait() async throws {
+        var recoveries = 0
+        let launcher = AppLauncher(recoverApplication: { _ in
+            recoveries += 1
+            return nil
+        }, openApplication: { _, _ in NSRunningApplication.current })
+        _ = try await launcher.launch(at: URL(fileURLWithPath: "/tmp/Fixture.app"), configuration: NSWorkspace.OpenConfiguration())
+        #expect(recoveries == 0)
+    }
+
     @Test func rejectedReopenFallsBackOnceToNormalOpen() async throws {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.appleEvent = NSAppleEventDescriptor(eventClass: AEEventClass(kCoreEventClass),
@@ -26,7 +82,7 @@ import Testing
         var calls = 0
         let launcher = AppLauncher(openApplication: { _, options in
             calls += 1
-            #expect(options.appleEvent == nil)
+            #expect(options.appleEvent == nil && !options.promptsUserIfNeeded)
             throw NSError(domain: NSOSStatusErrorDomain, code: -43)
         })
         let entry = AppEntry(id: "local.glint.test.missing", name: "Missing", url: URL(fileURLWithPath: "/tmp/Missing.app"))
