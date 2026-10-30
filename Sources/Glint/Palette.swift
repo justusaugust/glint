@@ -61,7 +61,7 @@ final class Palette: NSPanel, NSTextFieldDelegate, NSWindowDelegate {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
-        level = .floating
+        level = .screenSaver
         hidesOnDeactivate = false
         isMovableByWindowBackground = true
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
